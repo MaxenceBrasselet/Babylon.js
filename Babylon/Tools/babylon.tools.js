@@ -312,39 +312,7 @@
                 fps = 1000.0 / (sum / (length - 1));
             }
         };
-
-        // Log.
-        Tools.Log = {};
-
-        Tools.Log.Level = {
-            LOG: 1, // Do a console.log.
-            WARN: 2, // Do a console.warn.
-            ERROR: 4, // Do a console.error.
-        };
-
-        Tools.Log.enableFor = BABYLON.Tools.Log.Level.LOG | BABYLON.Tools.Log.Level.WARN | BABYLON.Tools.Log.Level.ERROR;
-
-        Tools.Log.log = function (level, message) {
-            var levelActive = (level & BABYLON.Tools.Log.enableFor);
-
-            // LevelActive === 0 mean the level was not activated.
-            if (!message || levelActive === 0) {
-                return;
-            }
-
-            switch (levelActive) {
-                case BABYLON.Tools.Log.Level.WARN:
-                    console.warn(message);
-                    break;
-                case BABYLON.Tools.Log.Level.ERROR:
-                    console.error(message);
-                    break;
-                case BABYLON.Tools.Log.Level.LOG:
-                    console.log(message);
-                    break;
-            }
-        };
-
+        
         Tools.BaseUrl = "";
         return Tools;
     })();

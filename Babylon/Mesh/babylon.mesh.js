@@ -530,11 +530,15 @@ var BABYLON;
 
                 if (!doNotDeleteAfterMerging) {
                     meshToMerge.dispose(true);
+                     
+                    // only for position kind.
+                    // Transform meshToMerge's children position.
                 }
             }
 
             if (vertices.length >= BABYLON.Mesh.VERTICESLIMITATION) {
-                BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.WARN, 'Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
+                console.error('To much vertices');
+                //BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.WARN, 'Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
             }
 
             if (vertices.length === 0)
@@ -545,6 +549,19 @@ var BABYLON;
             if (kind === BABYLON.VertexBuffer.PositionKind) {
                 this.setIndices(indices);
                 this.position = center;
+
+                // Transform this children.
+                /*var children = this.getChildren();
+
+                for (var ci in children) {
+                    var child = children[ci];
+
+                    var childWorldMatrix = child.getWorldMatrix();
+
+                    var transformMatrix = childWorldMatrix.multiply(transformMatrixCenter);
+
+                    child.position = BABYLON.Vector3.TransformCoordinates(child.position, transformMatrix);
+                }*/
             }
         };
 
@@ -578,10 +595,7 @@ var BABYLON;
         };
 
         Mesh.prototype.flattenInPlace = function (doNotDeleteAfterMerging) {
-            //Create an array with mesh's children.
-            var descendants = [];
-
-            this._getDescendants(this._scene.meshes, descendants);
+            var descendants = this.getDescendants();
 
             this.mergeInPlace(descendants, doNotDeleteAfterMerging);
         };
