@@ -390,6 +390,7 @@
             this._gl.bindBuffer(this._gl.ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ARRAY_BUFFER, new Float32Array(vertices), this._gl.STATIC_DRAW);
             this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+
             vbo.references = 1;
             return vbo;
         };
@@ -416,6 +417,8 @@
             }
 
             this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._cachedVertexBuffers = null;
+
         };
 
         Engine.prototype.createIndexBuffer = function (indices) {
@@ -423,6 +426,8 @@
             this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this._gl.STATIC_DRAW);
             this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, null);
+            this._cachedIndexBuffer = null;
+
             vbo.references = 1;
             return vbo;
         };
@@ -564,19 +569,34 @@
             if (!effect || !effect.getAttributesCount() || this._currentEffect === effect) {
                 return;
             }
+            
+            this._vertexAttribArrays = this._vertexAttribArrays || [];
 
             // Use program
             this._gl.useProgram(effect.getProgram());
 
             var currentCount = effect.getAttributesCount();
             var maxIndex = 0;
-            for (var index = 0; index < currentCount; index++) {
+            
+            for (var i in this._vertexAttribArrays) {
+                if (i > this._gl.VERTEX_ATTRIB_ARRAY_ENABLED || !this._vertexAttribArrays[i]) {
+                    continue;
+                }
+
+                this._vertexAttribArrays[i] = false;
+                this._gl.disableVertexAttribArray(i);
+
+            }
+
+            var attributesCount = effect.getAttributesCount();
+
+            for (var index = 0; index < attributesCount; index++) {
                 // Attributes
                 var order = effect.getAttribute(index);
 
                 if (order >= 0) {
-                    this._gl.enableVertexAttribArray(effect.getAttribute(index));
-                    maxIndex = Math.max(maxIndex, order);
+                    this._vertexAttribArrays[order] = true;
+                    this._gl.enableVertexAttribArray(order);
                 }
             }
 
