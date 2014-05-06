@@ -312,7 +312,7 @@
                 fps = 1000.0 / (sum / (length - 1));
             }
         };
-
+        
         Tools.BaseUrl = "";
         return Tools;
     })();

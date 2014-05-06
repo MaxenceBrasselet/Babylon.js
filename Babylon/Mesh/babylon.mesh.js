@@ -528,13 +528,24 @@ var BABYLON;
                         break;
                 }
 
-                if (!doNotDeleteAfterMerging) {
+                if (!doNotDeleteAfterMerging) {                    
+                    // When we delete the meshToMerge, we need to reset its children position into the world,
+                    // because we gonna delete the meshToMerge and we don't want to move children's position.
+                    var children = meshToMerge.getChildren();
+
+                    for (var ci in children) {
+                        var child = children[ci];
+
+                        child.position = child.getAbsolutePosition();
+                    }
+
                     meshToMerge.dispose(true);
                 }
             }
 
             if (vertices.length >= BABYLON.Mesh.VERTICESLIMITATION) {
-                BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.WARN, 'Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
+                console.error('To much vertices');
+                //BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.WARN, 'Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
             }
 
             if (vertices.length === 0)
@@ -544,6 +555,19 @@ var BABYLON;
 
             if (kind === BABYLON.VertexBuffer.PositionKind) {
                 this.setIndices(indices);
+
+                // Transform children's position.
+                var children = this.getChildren();
+
+                for (var ci in children) {
+                    var child = children[ci];
+
+                    // Just need to add its parent position because the merge is only applied to its parent,
+                    // so its parent keep its relative position to its own parent.
+                    childPositionInParentSpace = child.position.add(this.position);
+                    child.position = childPositionInParentSpace.subtract(center);
+                }
+
                 this.position = center;
             }
         };
@@ -566,22 +590,21 @@ var BABYLON;
 
             this.computeWorldMatrix(true);
 
-            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.UVKind);
-            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.UV2Kind);
-            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.ColorKind);
-            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.MatricesIndicesKind);
-            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.MatricesWeightsKind);
-            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.PositionKind);
-            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.NormalKind, doNotDeleteAfterMerging);
+            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.UVKind, true);
+            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.UV2Kind, true);
+            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.ColorKind, true);
+            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.MatricesIndicesKind, true);
+            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.MatricesWeightsKind, true);
+            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.NormalKind, true);
+            // the delete of the mesh must be done during the last _setVerticesDataByMerging 
+            // because if we did it earlier, the mesh will be deleted for the next step.
+            this._setVerticesDataByMerging(meshesToMerge, BABYLON.VertexBuffer.PositionKind, doNotDeleteAfterMerging);
 
             return this;
         };
 
         Mesh.prototype.flattenInPlace = function (doNotDeleteAfterMerging) {
-            //Create an array with mesh's children.
-            var descendants = [];
-
-            this._getDescendants(this._scene.meshes, descendants);
+            var descendants = this.getDescendants();
 
             this.mergeInPlace(descendants, doNotDeleteAfterMerging);
         };
