@@ -1,4 +1,6 @@
 ﻿module BABYLON {
+    var maxSimultaneousLights = 4;
+
     export class StandardMaterial extends Material {
         public diffuseTexture: Texture;
         public ambientTexture: Texture;
@@ -199,7 +201,7 @@
                     }
 
                     lightIndex++;
-                    if (lightIndex == 4)
+                    if (lightIndex == maxSimultaneousLights)
                         break;
                 }
             }
@@ -379,7 +381,7 @@
 
                     light.diffuse.scaleToRef(light.intensity, this._scaledDiffuse);
                     light.specular.scaleToRef(light.intensity, this._scaledSpecular);
-                    this._effect.setColor3("vLightDiffuse" + lightIndex, this._scaledDiffuse);
+                    this._effect.setColor4("vLightDiffuse" + lightIndex, this._scaledDiffuse, light.range);
                     this._effect.setColor3("vLightSpecular" + lightIndex, this._scaledSpecular);
 
                     // Shadows
@@ -393,7 +395,7 @@
 
                     lightIndex++;
 
-                    if (lightIndex == 4)
+                    if (lightIndex == maxSimultaneousLights)
                         break;
                 }
             }

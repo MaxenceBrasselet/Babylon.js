@@ -250,9 +250,12 @@
             element.addEventListener("mouseup", this._onMouseUp, false);
             element.addEventListener("mouseout", this._onMouseOut, false);
             element.addEventListener("mousemove", this._onMouseMove, false);
-            window.addEventListener("keydown", this._onKeyDown, false);
-            window.addEventListener("keyup", this._onKeyUp, false);
-            window.addEventListener("blur", this._onLostFocus, false);
+
+            Tools.RegisterTopRootEvents([
+                { name: "keydown", handler: this._onKeyDown },
+                { name: "keyup", handler: this._onKeyUp },
+                { name: "blur", handler: this._onLostFocus }
+            ]);
         }
 
         public detachControl(element: HTMLElement): void {
@@ -264,9 +267,12 @@
             element.removeEventListener("mouseup", this._onMouseUp);
             element.removeEventListener("mouseout", this._onMouseOut);
             element.removeEventListener("mousemove", this._onMouseMove);
-            window.removeEventListener("keydown", this._onKeyDown);
-            window.removeEventListener("keyup", this._onKeyUp);
-            window.removeEventListener("blur", this._onLostFocus);
+
+            Tools.UnregisterTopRootEvents([
+                { name: "keydown", handler: this._onKeyDown },
+                { name: "keyup", handler: this._onKeyUp },
+                { name: "blur", handler: this._onLostFocus }
+            ]);
 
             this._attachedElement = null;
             if (this._reset) {
@@ -275,7 +281,15 @@
         }
 
         public _collideWithWorld(velocity: Vector3): void {
-            this.position.subtractFromFloatsToRef(0, this.ellipsoid.y, 0, this._oldPosition);
+            var globalPosition: Vector3;
+
+            if (this.parent) {
+                globalPosition = BABYLON.Vector3.TransformCoordinates(this.position, this.parent.getWorldMatrix());
+            } else {
+                globalPosition = this.position;
+            }
+
+            globalPosition.subtractFromFloatsToRef(0, this.ellipsoid.y, 0, this._oldPosition);
             this._collider.radius = this.ellipsoid;
 
             this.getScene()._getNewPosition(this._oldPosition, velocity, this._collider, 3, this._newPosition);

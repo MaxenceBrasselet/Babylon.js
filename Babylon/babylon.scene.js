@@ -38,6 +38,8 @@
             this.activeCameras = new Array();
             // Meshes
             this.meshes = new Array();
+            // Geometries
+            this._geometries = new Array();
             this.materials = new Array();
             this.multiMaterials = new Array();
             this.defaultMaterial = new BABYLON.StandardMaterial("default material", this);
@@ -62,7 +64,9 @@
             this.postProcessesEnabled = true;
             // Customs render targets
             this.renderTargetsEnabled = true;
-            this.customRenderTargets = [];
+            this.customRenderTargets = new Array();
+            // Imported meshes
+            this.importedMeshesFiles = new Array();
             this._totalVertices = 0;
             this._activeVertices = 0;
             this._activeParticles = 0;
@@ -97,6 +101,8 @@
             this.postProcessManager = new BABYLON.PostProcessManager(this);
 
             this._boundingBoxRenderer = new BABYLON.BoundingBoxRenderer(this);
+
+            this.attachControl();
         }
         // Properties
         Scene.prototype.getBoundingBoxRenderer = function () {
@@ -156,10 +162,61 @@
             return this._renderId;
         };
 
+        // Pointers handling
+        Scene.prototype.attachControl = function () {
+            var _this = this;
+            this._onPointerMove = function (evt) {
+                var canvas = _this._engine.getRenderingCanvas();
+                var pickResult = _this.pick(evt.offsetX || evt.layerX, evt.offsetY || evt.layerY, function (mesh) {
+                    return mesh.actionManager && mesh.isPickable;
+                });
+
+                if (pickResult.hit) {
+                    _this.setPointerOverMesh(pickResult.pickedMesh);
+                    canvas.style.cursor = "pointer";
+                } else {
+                    _this.setPointerOverMesh(null);
+                    canvas.style.cursor = "";
+                }
+            };
+
+            this._onPointerDown = function (evt) {
+                var pickResult = _this.pick(evt.offsetX || evt.layerX, evt.offsetY || evt.layerY);
+
+                if (pickResult.hit) {
+                    if (pickResult.pickedMesh.actionManager) {
+                        pickResult.pickedMesh.actionManager.processTrigger(BABYLON.ActionManager.OnPickTrigger);
+                    }
+                }
+
+                if (_this.onPointerDown) {
+                    _this.onPointerDown(evt, pickResult);
+                }
+            };
+
+            var eventPrefix = BABYLON.Tools.GetPointerPrefix();
+            this._engine.getRenderingCanvas().addEventListener(eventPrefix + "move", this._onPointerMove, false);
+            this._engine.getRenderingCanvas().addEventListener(eventPrefix + "down", this._onPointerDown, false);
+        };
+
+        Scene.prototype.detachControl = function () {
+            var eventPrefix = BABYLON.Tools.GetPointerPrefix();
+            this._engine.getRenderingCanvas().removeEventListener(eventPrefix + "move", this._onPointerMove);
+            this._engine.getRenderingCanvas().removeEventListener(eventPrefix + "down", this._onPointerDown);
+        };
+
         // Ready
         Scene.prototype.isReady = function () {
             if (this._pendingData.length > 0) {
                 return false;
+            }
+
+            for (var index = 0; index < this._geometries.length; index++) {
+                var geometry = this._geometries[index];
+
+                if (geometry.delayLoadState === BABYLON.Engine.DELAYLOADSTATE_LOADING) {
+                    return false;
+                }
             }
 
             for (var index = 0; index < this.meshes.length; index++) {
@@ -260,6 +317,16 @@
                     this.beginAnimation(animatables[index], from, to, loop, speedRatio, onAnimationEnd);
                 }
             }
+        };
+
+        Scene.prototype.beginDirectAnimation = function (target, animations, from, to, loop, speedRatio, onAnimationEnd) {
+            if (speedRatio === undefined) {
+                speedRatio = 1.0;
+            }
+
+            var animatable = new BABYLON.Internals.Animatable(target, from, to, loop, speedRatio, onAnimationEnd, animations);
+
+            this._activeAnimatables.push(animatable);
         };
 
         Scene.prototype.stopAnimation = function (target) {
@@ -382,6 +449,16 @@
             return null;
         };
 
+        Scene.prototype.getLightByName = function (name) {
+            for (var index = 0; index < this.lights.length; index++) {
+                if (this.lights[index].name === name) {
+                    return this.lights[index];
+                }
+            }
+
+            return null;
+        };
+
         Scene.prototype.getLightByID = function (id) {
             for (var index = 0; index < this.lights.length; index++) {
                 if (this.lights[index].id === id) {
@@ -390,6 +467,30 @@
             }
 
             return null;
+        };
+
+        Scene.prototype.getGeometryByID = function (id) {
+            for (var index = 0; index < this._geometries.length; index++) {
+                if (this._geometries[index].id === id) {
+                    return this._geometries[index];
+                }
+            }
+
+            return null;
+        };
+
+        Scene.prototype.pushGeometry = function (geometry, force) {
+            if (!force && this.getGeometryByID(geometry.id)) {
+                return false;
+            }
+
+            this._geometries.push(geometry);
+
+            return true;
+        };
+
+        Scene.prototype.getGeometries = function () {
+            return this._geometries;
         };
 
         Scene.prototype.getMeshByID = function (id) {
@@ -742,6 +843,11 @@
             this._totalVertices = 0;
             this._activeVertices = 0;
 
+            // Actions
+            if (this.actionManager) {
+                this.actionManager.processTrigger(BABYLON.ActionManager.OnEveryFrameTrigger);
+            }
+
             // Before render
             if (this.beforeRender) {
                 this.beforeRender();
@@ -806,6 +912,9 @@
             this.skeletons = [];
 
             this._boundingBoxRenderer.dispose();
+
+            // Events
+            this.detachControl();
 
             // Detach cameras
             var canvas = this._engine.getRenderingCanvas();
@@ -942,7 +1051,14 @@
 
                 camera = this.activeCamera;
             }
-            var viewport = camera.viewport.toGlobal(engine);
+
+            var cameraViewport = camera.viewport;
+            var viewport = cameraViewport.toGlobal(engine);
+
+            // Moving coordinates to local viewport world
+            x = x - viewport.x;
+            y = y - (this._engine.getRenderHeight() - viewport.y - viewport.height);
+
             return BABYLON.Ray.CreateNew(x * this._engine.getHardwareScalingLevel(), y * this._engine.getHardwareScalingLevel(), viewport.width, viewport.height, world ? world : BABYLON.Matrix.Identity(), camera.getViewMatrix(), camera.getProjectionMatrix());
         };
 
@@ -1004,21 +1120,43 @@
             }, predicate, fastCheck);
         };
 
+        Scene.prototype.setPointerOverMesh = function (mesh) {
+            if (this._pointerOverMesh === mesh) {
+                return;
+            }
+
+            if (this._pointerOverMesh && this._pointerOverMesh.actionManager) {
+                this._pointerOverMesh.actionManager.processTrigger(BABYLON.ActionManager.OnPointerOutTrigger);
+            }
+
+            this._pointerOverMesh = mesh;
+            if (this._pointerOverMesh && this._pointerOverMesh.actionManager) {
+                this._pointerOverMesh.actionManager.processTrigger(BABYLON.ActionManager.OnPointerOverTrigger);
+            }
+        };
+
+        Scene.prototype.getPointerOverMesh = function () {
+            return this._pointerOverMesh;
+        };
+
         // Physics
         Scene.prototype.getPhysicsEngine = function () {
             return this._physicsEngine;
         };
 
-        Scene.prototype.enablePhysics = function (gravity, iterations) {
+        Scene.prototype.enablePhysics = function (gravity, plugin) {
             if (this._physicsEngine) {
                 return true;
             }
 
-            if (!BABYLON.PhysicsEngine.IsSupported()) {
+            this._physicsEngine = new BABYLON.PhysicsEngine(plugin);
+
+            if (!this._physicsEngine.isSupported()) {
+                this._physicsEngine = null;
                 return false;
             }
 
-            this._physicsEngine = new BABYLON.PhysicsEngine(gravity, iterations || 10);
+            this._physicsEngine._initialize(gravity);
 
             return true;
         };
@@ -1044,22 +1182,26 @@
             this._physicsEngine._setGravity(gravity);
         };
 
-        //ANY
-        Scene.prototype.createCompoundImpostor = function (options) {
+        Scene.prototype.createCompoundImpostor = function (parts, options) {
+            if (parts.parts) {
+                options = parts;
+                parts = parts.parts;
+            }
+
             if (!this._physicsEngine) {
                 return null;
             }
 
-            for (var index = 0; index < options.parts.length; index++) {
-                var mesh = options.parts[index].mesh;
+            for (var index = 0; index < parts.length; index++) {
+                var mesh = parts[index].mesh;
 
-                mesh._physicImpostor = options.parts[index].impostor;
-                mesh._physicsMass = options.mass / options.parts.length;
+                mesh._physicImpostor = parts[index].impostor;
+                mesh._physicsMass = options.mass / parts.length;
                 mesh._physicsFriction = options.friction;
                 mesh._physicRestitution = options.restitution;
             }
 
-            return this._physicsEngine._registerCompound(options);
+            return this._physicsEngine._registerMeshesAsCompound(parts, options);
         };
 
         //ANY

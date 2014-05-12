@@ -14,7 +14,7 @@
         public _waitingRenderList: string[];
         private _doNotChangeAspectratio: boolean;
 
-        constructor(name: string, size: number, scene: Scene, generateMipMaps?: boolean, doNotChangeAspectratio?: boolean) {
+        constructor(name: string, size: any, scene: Scene, generateMipMaps?: boolean, doNotChangeAspectratio?: boolean) {
             super(null, scene, !generateMipMaps);
 
             this.name = name;
@@ -67,7 +67,7 @@
             for (var meshIndex = 0; meshIndex < this.renderList.length; meshIndex++) {
                 var mesh = this.renderList[meshIndex];
 
-                if (mesh && mesh.isEnabled() && mesh.isVisible) {
+                if (mesh && mesh.isEnabled() && mesh.isVisible && mesh.subMeshes) {
                     for (var subIndex = 0; subIndex < mesh.subMeshes.length; subIndex++) {
                         var subMesh = mesh.subMeshes[subIndex];
                         scene._activeVertices += subMesh.verticesCount;

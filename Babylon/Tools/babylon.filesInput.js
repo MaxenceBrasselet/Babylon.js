@@ -80,7 +80,8 @@ var BABYLON = BABYLON || {};
         if (filesToLoad && filesToLoad.length > 0) {
             for (var i = 0; i < filesToLoad.length; i++) {
                 if (filesToLoad[i].name.indexOf(".babylon") !== -1 && filesToLoad[i].name.indexOf(".manifest") === -1
-				 && filesToLoad[i].name.indexOf(".incremental") === -1 && filesToLoad[i].name.indexOf(".babylonmeshdata") === -1) {
+				 && filesToLoad[i].name.indexOf(".incremental") === -1 && filesToLoad[i].name.indexOf(".babylonmeshdata") === -1
+                 && filesToLoad[i].name.indexOf(".babylongeometrydata") === -1) {
                     sceneFileToLoad = filesToLoad[i];
                 }
                 else {
@@ -118,7 +119,7 @@ var BABYLON = BABYLON || {};
                 });
             }
             else {
-                console.log("Please provide a valid .babylon file.");
+                BABYLON.Tools.Error("Please provide a valid .babylon file.");
             }
         }
     };

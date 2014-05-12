@@ -25,7 +25,7 @@
         return count;
     };
 
-    var prepareWebGLTexture = function (texture, gl, scene, width, height, invertY, noMipmap, processFunction) {
+    var prepareWebGLTexture = function (texture, gl, scene, width, height, invertY, noMipmap, isCompressed, processFunction) {
         var engine = scene.getEngine();
         var potWidth = getExponantOfTwo(width, engine.getCaps().maxTextureSize);
         var potHeight = getExponantOfTwo(height, engine.getCaps().maxTextureSize);
@@ -41,7 +41,10 @@
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         } else {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-            gl.generateMipmap(gl.TEXTURE_2D);
+
+            if (!isCompressed) {
+                gl.generateMipmap(gl.TEXTURE_2D);
+            }
         }
         gl.bindTexture(gl.TEXTURE_2D, null);
 
@@ -101,7 +104,6 @@
             this._loadedTexturesCache = new Array();
             this._activeTexturesCache = new Array();
             this._compiledEffects = {};
-            this._lastVertexAttribIndex = 0;
             this._depthMask = false;
             this._renderingCanvas = canvas;
 
@@ -385,11 +387,16 @@
         };
 
         // VBOs
+        Engine.prototype._resetVertexBufferBinding = function () {
+            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._cachedVertexBuffers = null;
+        };
+
         Engine.prototype.createVertexBuffer = function (vertices) {
             var vbo = this._gl.createBuffer();
             this._gl.bindBuffer(this._gl.ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ARRAY_BUFFER, new Float32Array(vertices), this._gl.STATIC_DRAW);
-            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._resetVertexBufferBinding();
 
             vbo.references = 1;
             return vbo;
@@ -399,7 +406,7 @@
             var vbo = this._gl.createBuffer();
             this._gl.bindBuffer(this._gl.ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ARRAY_BUFFER, capacity, this._gl.DYNAMIC_DRAW);
-            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._resetVertexBufferBinding();
             vbo.references = 1;
             return vbo;
         };
@@ -416,16 +423,21 @@
                 }
             }
 
-            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._resetVertexBufferBinding();
             this._cachedVertexBuffers = null;
 
+        };
+
+        Engine.prototype._resetIndexBufferBinding = function () {
+            this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, null);
+            this._cachedIndexBuffer = null;
         };
 
         Engine.prototype.createIndexBuffer = function (indices) {
             var vbo = this._gl.createBuffer();
             this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this._gl.STATIC_DRAW);
-            this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, null);
+            this._resetIndexBufferBinding();
             this._cachedIndexBuffer = null;
 
             vbo.references = 1;
@@ -486,7 +498,10 @@
 
             if (buffer.references === 0) {
                 this._gl.deleteBuffer(buffer);
+                return true;
             }
+
+            return false;
         };
 
         Engine.prototype.draw = function (useTriangles, indexStart, indexCount) {
@@ -572,24 +587,20 @@
             
             this._vertexAttribArrays = this._vertexAttribArrays || [];
 
+            this._vertexAttribArrays = this._vertexAttribArrays || [];
+
             // Use program
             this._gl.useProgram(effect.getProgram());
 
-            var currentCount = effect.getAttributesCount();
-            var maxIndex = 0;
-            
             for (var i in this._vertexAttribArrays) {
                 if (i > this._gl.VERTEX_ATTRIB_ARRAY_ENABLED || !this._vertexAttribArrays[i]) {
                     continue;
                 }
-
                 this._vertexAttribArrays[i] = false;
                 this._gl.disableVertexAttribArray(i);
-
             }
 
             var attributesCount = effect.getAttributesCount();
-
             for (var index = 0; index < attributesCount; index++) {
                 // Attributes
                 var order = effect.getAttribute(index);
@@ -600,11 +611,6 @@
                 }
             }
 
-            for (index = maxIndex + 1; index <= this._lastVertexAttribIndex; index++) {
-                this._gl.disableVertexAttribArray(index);
-            }
-
-            this._lastVertexAttribIndex = maxIndex;
             this._currentEffect = effect;
         };
 
@@ -744,7 +750,7 @@
             this._cullingState = null;
 
             this._cachedVertexBuffers = null;
-            this._cachedVertexBuffers = null;
+            this._cachedIndexBuffer = null;
             this._cachedEffectForVertexBuffers = null;
         };
 
@@ -765,13 +771,13 @@
 
                     var loadMipmap = info.mipmapCount > 1 && !noMipmap;
 
-                    prepareWebGLTexture(texture, _this._gl, scene, info.width, info.height, invertY, !loadMipmap, function () {
+                    prepareWebGLTexture(texture, _this._gl, scene, info.width, info.height, invertY, !loadMipmap, true, function () {
                         BABYLON.Internals.DDSTools.UploadDDSLevels(_this._gl, _this.getCaps().s3tc, data, loadMipmap);
                     });
                 }, null, scene.database, true);
             } else {
                 var onload = function (img) {
-                    prepareWebGLTexture(texture, _this._gl, scene, img.width, img.height, invertY, noMipmap, function (potWidth, potHeight) {
+                    prepareWebGLTexture(texture, _this._gl, scene, img.width, img.height, invertY, noMipmap, false, function (potWidth, potHeight) {
                         var isPot = (img.width == potWidth && img.height == potHeight);
                         if (!isPot) {
                             _this._workingCanvas.width = potWidth;
@@ -1139,8 +1145,16 @@
             }
         };
 
+        Engine.prototype.readPixels = function (x, y, width, height) {
+            var data = new Uint8Array(height * width * 4);
+            this._gl.readPixels(0, 0, width, height, this._gl.RGBA, this._gl.UNSIGNED_BYTE, data);
+            return data;
+        };
+
         // Dispose
         Engine.prototype.dispose = function () {
+            this.stopRenderLoop();
+
             while (this.scenes.length) {
                 this.scenes[0].dispose();
             }

@@ -24,7 +24,7 @@
         return count;
     };
 
-    var prepareWebGLTexture = (texture: WebGLTexture, gl: WebGLRenderingContext, scene: Scene, width: number, height: number, invertY: boolean, noMipmap: boolean,
+    var prepareWebGLTexture = (texture: WebGLTexture, gl: WebGLRenderingContext, scene: Scene, width: number, height: number, invertY: boolean, noMipmap: boolean, isCompressed: boolean,
         processFunction: (width: number, height: number) => void) => {
         var engine = scene.getEngine();
         var potWidth = getExponantOfTwo(width, engine.getCaps().maxTextureSize);
@@ -41,7 +41,10 @@
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         } else {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-            gl.generateMipmap(gl.TEXTURE_2D);
+
+            if (!isCompressed) {
+                gl.generateMipmap(gl.TEXTURE_2D);
+            }
         }
         gl.bindTexture(gl.TEXTURE_2D, null);
 
@@ -134,12 +137,12 @@
         private _renderFunction: () => void;
 
         // Cache
-        private _loadedTexturesCache = new Array <WebGLTexture>();
+        private _loadedTexturesCache = new Array<WebGLTexture>();
         public _activeTexturesCache = new Array<Texture>();
         private _currentEffect: Effect;
         private _cullingState: boolean;
         private _compiledEffects = {};
-        private _lastVertexAttribIndex = 0;
+        private _vertexAttribArrays: boolean[];
         private _depthMask = false;
         private _cachedViewport: Viewport;
         private _cachedVertexBuffers: any;
@@ -286,7 +289,7 @@
             return this._hardwareScalingLevel;
         }
 
-        public getLoadedTexturesCache():  WebGLTexture[] {
+        public getLoadedTexturesCache(): WebGLTexture[] {
             return this._loadedTexturesCache;
         }
 
@@ -442,11 +445,16 @@
         }
 
         // VBOs
+        private _resetVertexBufferBinding(): void {
+            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._cachedVertexBuffers = null;
+        }
+
         public createVertexBuffer(vertices: number[]): WebGLBuffer {
             var vbo = this._gl.createBuffer();
             this._gl.bindBuffer(this._gl.ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ARRAY_BUFFER, new Float32Array(vertices), this._gl.STATIC_DRAW);
-            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._resetVertexBufferBinding();
             vbo.references = 1;
             return vbo;
         }
@@ -455,7 +463,7 @@
             var vbo = this._gl.createBuffer();
             this._gl.bindBuffer(this._gl.ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ARRAY_BUFFER, capacity, this._gl.DYNAMIC_DRAW);
-            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._resetVertexBufferBinding();
             vbo.references = 1;
             return vbo;
         }
@@ -472,14 +480,19 @@
                 }
             }
 
-            this._gl.bindBuffer(this._gl.ARRAY_BUFFER, null);
+            this._resetVertexBufferBinding();
+        }
+
+        private _resetIndexBufferBinding(): void {
+            this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, null);
+            this._cachedIndexBuffer = null;
         }
 
         public createIndexBuffer(indices: number[]): WebGLBuffer {
             var vbo = this._gl.createBuffer();
             this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, vbo);
             this._gl.bufferData(this._gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this._gl.STATIC_DRAW);
-            this._gl.bindBuffer(this._gl.ELEMENT_ARRAY_BUFFER, null);
+            this._resetIndexBufferBinding();
             vbo.references = 1;
             return vbo;
         }
@@ -533,12 +546,15 @@
             }
         }
 
-        public _releaseBuffer(buffer: WebGLBuffer): void {
+        public _releaseBuffer(buffer: WebGLBuffer): boolean {
             buffer.references--;
 
             if (buffer.references === 0) {
                 this._gl.deleteBuffer(buffer);
+                return true;
             }
+
+            return false;
         }
 
         public draw(useTriangles: boolean, indexStart: number, indexCount: number): void {
@@ -622,26 +638,31 @@
             if (!effect || !effect.getAttributesCount() || this._currentEffect === effect) {
                 return;
             }
+
+            this._vertexAttribArrays = this._vertexAttribArrays || [];
+
             // Use program
             this._gl.useProgram(effect.getProgram());
 
-            var currentCount = effect.getAttributesCount();
-            var maxIndex = 0;
-            for (var index = 0; index < currentCount; index++) {
+            for (var i in this._vertexAttribArrays) {
+                if (i > this._gl.VERTEX_ATTRIB_ARRAY_ENABLED || !this._vertexAttribArrays[i]) {
+                    continue;
+                }
+                this._vertexAttribArrays[i] = false;
+                this._gl.disableVertexAttribArray(i);
+            }
+
+            var attributesCount = effect.getAttributesCount();
+            for (var index = 0; index < attributesCount; index++) {
                 // Attributes
                 var order = effect.getAttribute(index);
 
                 if (order >= 0) {
-                    this._gl.enableVertexAttribArray(effect.getAttribute(index));
-                    maxIndex = Math.max(maxIndex, order);
+                    this._vertexAttribArrays[order] = true;
+                    this._gl.enableVertexAttribArray(order);
                 }
             }
 
-            for (index = maxIndex + 1; index <= this._lastVertexAttribIndex; index++) {
-                this._gl.disableVertexAttribArray(index);
-            }
-
-            this._lastVertexAttribIndex = maxIndex;
             this._currentEffect = effect;
         }
 
@@ -782,7 +803,7 @@
             this._cullingState = null;
 
             this._cachedVertexBuffers = null;
-            this._cachedVertexBuffers = null;
+            this._cachedIndexBuffer = null;
             this._cachedEffectForVertexBuffers = null;
         }
 
@@ -802,13 +823,13 @@
 
                     var loadMipmap = info.mipmapCount > 1 && !noMipmap;
 
-                    prepareWebGLTexture(texture, this._gl, scene, info.width, info.height, invertY, !loadMipmap, () => {
+                    prepareWebGLTexture(texture, this._gl, scene, info.width, info.height, invertY, !loadMipmap, true, () => {
                         BABYLON.Internals.DDSTools.UploadDDSLevels(this._gl, this.getCaps().s3tc, data, loadMipmap);
                     });
                 }, null, scene.database, true);
             } else {
                 var onload = (img) => {
-                    prepareWebGLTexture(texture, this._gl, scene, img.width, img.height, invertY, noMipmap, (potWidth, potHeight) => {
+                    prepareWebGLTexture(texture, this._gl, scene, img.width, img.height, invertY, noMipmap, false, (potWidth, potHeight) => {
                         var isPot = (img.width == potWidth && img.height == potHeight);
                         if (!isPot) {
                             this._workingCanvas.width = potWidth;
@@ -1174,8 +1195,16 @@
             }
         }
 
+        public readPixels(x: number, y: number, width: number, height: number): Uint8Array {
+            var data = new Uint8Array(height * width * 4);
+            this._gl.readPixels(0, 0, width, height, this._gl.RGBA, this._gl.UNSIGNED_BYTE, data);
+            return data;
+        }
+
         // Dispose
         public dispose(): void {
+            this.stopRenderLoop();
+
             // Release scenes
             while (this.scenes.length) {
                 this.scenes[0].dispose();

@@ -11,6 +11,9 @@
         height: number;
     }
 
+    // Screenshots
+    var screenshotCanvas: HTMLCanvasElement;
+
     // FPS
     var fpsRange = 60;
     var previousFramesDuration = [];
@@ -83,7 +86,7 @@
             };
         }
 
-        public static MakeArray(obj, allowsNullUndefined: boolean): Array<any> {
+        public static MakeArray(obj, allowsNullUndefined?: boolean): Array<any> {
             if (allowsNullUndefined !== true && (obj === undefined || obj == null))
                 return undefined;
 
@@ -188,7 +191,7 @@
                         img.src = blobURL;
                     }
                     catch (e) {
-                        console.log("Error while trying to load texture: " + textureName);
+                        Tools.Log("Error while trying to load texture: " + textureName);
                         img.src = null;
                     }
                 }
@@ -302,6 +305,36 @@
             return true;
         }
 
+        public static RegisterTopRootEvents(events: { name: string; handler: EventListener }[]): void {
+            for (var index = 0; index < events.length; index++) {
+                var event = events[index];
+                window.addEventListener(event.name, event.handler, false);
+
+                try {
+                    if (window.parent) {
+                        window.parent.addEventListener(event.name, event.handler, false);
+                    }
+                } catch (e) {
+                    // Silently fails...
+                }
+            }
+        }
+
+        public static UnregisterTopRootEvents(events: { name: string; handler: EventListener }[]): void {
+            for (var index = 0; index < events.length; index++) {
+                var event = events[index];
+                window.removeEventListener(event.name, event.handler);
+
+                try {
+                    if (window.parent) {
+                        window.parent.removeEventListener(event.name, event.handler);
+                    }
+                } catch (e) {
+                    // Silently fails...
+                }
+            }
+        }
+
         public static GetFps(): number {
             return fps;
         }
@@ -332,6 +365,132 @@
 
                 fps = 1000.0 / (sum / (length - 1));
             }
+        }
+
+        public static CreateScreenshot(engine: Engine, camera: Camera, size: any): void {
+            var width: number;
+            var height: number;
+
+            //If a precision value is specified
+            if (size.precision) {
+                width = Math.round(engine.getRenderWidth() * size.precision);
+                height = Math.round(width / engine.getAspectRatio(camera));
+                size = { width: width, height: height };
+            }
+            else if (size.width && size.height) {
+                width = size.width;
+                height = size.height;
+            }
+            //If passing only width, computing height to keep display canvas ratio.
+            else if (size.width && !size.height) {
+                width = size.width;
+                height = Math.round(width / engine.getAspectRatio(camera));
+                size = { width: width, height: height };
+            }
+            //If passing only height, computing width to keep display canvas ratio.
+            else if (size.height && !size.width) {
+                height = size.height;
+                width = Math.round(height * engine.getAspectRatio(camera));
+                size = { width: width, height: height };
+            }
+            //Assuming here that "size" parameter is a number
+            else if (!isNaN(size)) {
+                height = size;
+                width = size;
+            }
+            else {
+                Tools.Error("Invalid 'size' parameter !");
+                return;
+            }
+
+            //At this point size can be a number, or an object (according to engine.prototype.createRenderTargetTexture method)
+            var texture = new RenderTargetTexture("screenShot", size, engine.scenes[0]);
+            texture.renderList = engine.scenes[0].meshes;
+
+            texture.onAfterRender = () => {
+                // Read the contents of the framebuffer
+                var numberOfChannelsByLine = width * 4;
+                var halfHeight = height / 2;
+
+                //Reading datas from WebGL
+                var data = engine.readPixels(0, 0, width, height);
+
+
+                //To flip image on Y axis.
+                for (var i = 0; i < halfHeight; i++) {
+                    for (var j = 0; j < numberOfChannelsByLine; j++) {
+                        var currentCell = j + i * numberOfChannelsByLine;
+                        var targetLine = height - i - 1;
+                        var targetCell = j + targetLine * numberOfChannelsByLine;
+
+                        var temp = data[currentCell];
+                        data[currentCell] = data[targetCell];
+                        data[targetCell] = temp;
+                    }
+                }
+
+                // Create a 2D canvas to store the result
+                if (!screenshotCanvas) {
+                    screenshotCanvas = document.createElement('canvas');
+                }
+                screenshotCanvas.width = width;
+                screenshotCanvas.height = height;
+                var context = screenshotCanvas.getContext('2d');
+
+                // Copy the pixels to a 2D canvas
+                var imageData = context.createImageData(width, height);
+                imageData.data.set(data);
+                context.putImageData(imageData, 0, 0);
+
+                var base64Image = screenshotCanvas.toDataURL();
+
+                //Creating a link if the browser have the download attribute on the a tag, to automatically start download generated image.
+                if (("download" in document.createElement("a"))) {
+                    var a = window.document.createElement("a");
+                    a.href = base64Image;
+                    var date = new Date();
+                    var stringDate = date.getFullYear() + "/" + date.getMonth() + "/" + date.getDate() + "-" + date.getHours() + ":" + date.getMinutes();
+                    a.setAttribute("download", "screenshot-" + stringDate);
+
+                    window.document.body.appendChild(a);
+
+                    a.addEventListener("click", () => {
+                        a.parentElement.removeChild(a);
+                    });
+                    a.click();
+
+                    //Or opening a new tab with the image if it is not possible to automatically start download.
+                } else {
+                    var newWindow = window.open("");
+                    var img = newWindow.document.createElement("img");
+                    img.src = base64Image;
+                    newWindow.document.body.appendChild(img);
+                }
+
+            };
+
+            texture.render();
+            texture.dispose();
+        }
+
+        // Logs
+        private static _FormatMessage(message: string): string {
+            var padStr = i => (i < 10) ? "0" + i : "" + i;
+
+            var date = new Date();
+            return "BJS - [" + padStr(date.getHours()) + ":" + padStr(date.getMinutes()) +  ":" + padStr(date.getSeconds()) + "]:" + message;
+        }
+
+        public static Log(message: string): void {
+            console.log(Tools._FormatMessage(message));
+        }
+
+        public static Warn(message: string): void {
+            console.warn(Tools._FormatMessage(message));
+        }
+
+        public static Error(message: string): void {
+            console.error(Tools._FormatMessage(message));
         }
     }
 } 

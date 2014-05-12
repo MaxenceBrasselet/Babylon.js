@@ -102,6 +102,15 @@
 
             return new Color3(r, g, b);
         }
+
+        public static Red(): Color3 { return new Color3(1, 0, 0); }
+        public static Green(): Color3 { return new Color3(0, 1, 0); }
+        public static Blue(): Color3 { return new Color3(0, 0, 1); }
+        public static Black(): Color3 { return new Color3(0, 0, 0); }
+        public static White(): Color3 { return new Color3(1, 1, 1); }
+        public static Purple(): Color3 { return new Color3(0.5, 0, 0.5); }
+        public static Magenta(): Color3 { return new Color3(1, 0, 1); }
+        public static Yellow(): Color3 { return new Color3(1, 1, 0); }
     }
 
     export class Color4 {
@@ -221,6 +230,11 @@
             this.toArray(result, 0);
 
             return result;
+        }
+
+        public copyFrom(source: Vector2): void {
+            this.x = source.x;
+            this.y = source.y;
         }
 
         public add(otherVector: Vector2): Vector2 {
@@ -743,10 +757,10 @@
             matrix.invert();
             source.x = source.x / viewportWidth * 2 - 1;
             source.y = -(source.y / viewportHeight * 2 - 1);
-            var vector = Vector3.TransformCoordinates(source, matrix);
+            var vector = BABYLON.Vector3.TransformCoordinates(source, matrix);
             var num = source.x * matrix.m[3] + source.y * matrix.m[7] + source.z * matrix.m[11] + matrix.m[15];
 
-            if (Math.abs(num) < 1.0) {
+            if (BABYLON.Tools.WithinEpsilon(num, 1.0)) {
                 vector = vector.scale(1.0 / num);
             }
 
@@ -1828,7 +1842,7 @@
         }
 
         // Methods
-        public intersectsBox(box): boolean {
+        public intersectsBox(box: BoundingBox): boolean {
             var d = 0.0;
             var maxValue = Number.MAX_VALUE;
 

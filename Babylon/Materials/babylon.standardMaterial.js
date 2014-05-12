@@ -6,6 +6,8 @@
 };
 var BABYLON;
 (function (BABYLON) {
+    var maxSimultaneousLights = 4;
+
     var StandardMaterial = (function (_super) {
         __extends(StandardMaterial, _super);
         function StandardMaterial(name, scene) {
@@ -196,7 +198,7 @@ var BABYLON;
                     }
 
                     lightIndex++;
-                    if (lightIndex == 4)
+                    if (lightIndex == maxSimultaneousLights)
                         break;
                 }
             }
@@ -373,7 +375,7 @@ var BABYLON;
 
                     light.diffuse.scaleToRef(light.intensity, this._scaledDiffuse);
                     light.specular.scaleToRef(light.intensity, this._scaledSpecular);
-                    this._effect.setColor3("vLightDiffuse" + lightIndex, this._scaledDiffuse);
+                    this._effect.setColor4("vLightDiffuse" + lightIndex, this._scaledDiffuse, light.range);
                     this._effect.setColor3("vLightSpecular" + lightIndex, this._scaledSpecular);
 
                     // Shadows
@@ -387,7 +389,7 @@ var BABYLON;
 
                     lightIndex++;
 
-                    if (lightIndex == 4)
+                    if (lightIndex == maxSimultaneousLights)
                         break;
                 }
             }
