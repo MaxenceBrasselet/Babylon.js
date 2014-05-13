@@ -709,7 +709,7 @@
                     }
 
                     if (haveToBreakHierarchy) {
-                        thisChild.position = child.getAbsolutePosition(true);
+                        thisChild.position = thisChild.getAbsolutePosition(true);
                         thisChild.parent = null;
                     }
                     else {
