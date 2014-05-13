@@ -463,7 +463,7 @@
         public mergeInPlace(meshesToMerge: Mesh, breakHierarchy?: boolean, doNotDeleteAfterMerging?: boolean, flattenChildren?: boolean): Mesh;
         public mergeInPlace(meshesToMerge: any, breakHierarchy?: any, doNotDeleteAfterMerging?: boolean, flattenChildren?: boolean): Mesh {
             if (!meshesToMerge) {
-                //BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.ERROR, 'Must have meshes to merge.');
+                BABYLON.Tools.Error('Must have meshes to merge.');
                 return;
             }
 
@@ -669,7 +669,9 @@
                             child.position = child.getAbsolutePosition(true);
                         }
                         else {
+                            child.position = child.getAbsolutePosition(true).subtract(center);
                             child.parent = this;
+                            child.justAdded = true;
                         }
                     }
 
@@ -678,8 +680,7 @@
             }
 
             if (vertices.length >= BABYLON.Mesh.VERTICESLIMITATION) {
-                console.error('To much vertices');
-                //BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.WARN, 'Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
+                BABYLON.Tools.Warn('Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
             }
 
             if (vertices.length === 0)
@@ -700,17 +701,22 @@
                 }
 
                 for (var thisCi = 0; thisCi < thisChildren.length; ++thisCi) {
-                    var child = children[thisCi];
+                    var thisChild: any = thisChildren[thisCi];
+
+                    // Just added means the child was added by merging.
+                    if (thisChild.justAdded) {
+                        continue;
+                    }
 
                     if (haveToBreakHierarchy) {
-                        child.position = child.getAbsolutePosition(true);
-                        child.parent = null;
+                        thisChild.position = child.getAbsolutePosition(true);
+                        thisChild.parent = null;
                     }
                     else {
                         // Just need to add its parent position because the merge is only applied to its parent,
                         // so its parent keep its relative position to its own parent.
-                        var childPositionInParentSpace = child.position.add(this.position);
-                        child.position = childPositionInParentSpace.subtract(center);
+                        var childPositionInParentSpace = thisChild.position.add(this.position);
+                        thisChild.position = childPositionInParentSpace.subtract(center);
                     }
                 }
 
