@@ -439,14 +439,17 @@
             }
         }
 
-        public static Merge(meshesToMerge: Mesh[], newMeshName: string, scene: Scene, doNotDeleteAfterMerging: boolean, flattenChildren: boolean): Mesh {
+        public static Merge(meshesToMerge: Mesh[], newMeshName: string, scene: Scene, breakHierarchy?: boolean[], doNotDeleteAfterMerging?: boolean, flattenChildren?: boolean): Mesh;
+        public static Merge(meshesToMerge: Mesh[], newMeshName: string, scene: Scene, breakHierarchy?: boolean, doNotDeleteAfterMerging?: boolean, flattenChildren?: boolean): Mesh;
+        public static Merge(meshesToMerge: Mesh[], newMeshName: string, scene: Scene, breakHierarchy?: any, doNotDeleteAfterMerging?: boolean, flattenChildren?: boolean): Mesh {
             var newMesh = new BABYLON.Mesh(newMeshName, scene);
 
-            // This variable is used to know that this merge is the merged one 
-            // so we don't have to consider it in some case (like when calculating the center of meshes.
+            // This variable is used to know that this mesh is the merged one 
+            // so we don't have to consider it in some case (like when calculating the center of meshes).
+            // because it has been created just as a container.
             newMesh._newMeshForMerge = true;
 
-            newMesh.mergeInPlace(meshesToMerge, doNotDeleteAfterMerging, flattenChildren);
+            newMesh.mergeInPlace(meshesToMerge, breakHierarchy, doNotDeleteAfterMerging, flattenChildren);
 
             newMesh._newMeshForMerge = false;
             
@@ -630,14 +633,6 @@
 
                         indices = indices.concat(tmpIndices);
                         break;
-                    case BABYLON.VertexBuffer.NormalKind:
-                        // means we treat the first mesh to merge.
-                        if (vertices.length == 0) {
-                            this._getVerticesPositionsAndNormals(kind, vertices, meshTransformMatrix);
-                        }
-
-                        meshToMerge._getVerticesPositionsAndNormals(kind, vertices, meshToMergeTransformMatrix);
-                        break;
                     default:
                         // means we treat the first mesh to merge.   
                         if (vertices.length == 0 && this.isVerticesDataPresent(kind)) {
@@ -686,10 +681,10 @@
             if (vertices.length === 0)
                 return;
 
-            this.setVerticesData(vertices, kind, false);
+            this.setVerticesData(vertices, kind, false, true);
 
             if (kind === BABYLON.VertexBuffer.PositionKind) {
-                this.setIndices(indices);
+                this.setIndices(indices, true);
 
                 // Transform children's position.
                 var thisChildren = this.getChildren();
@@ -771,7 +766,7 @@
             }
         }
 
-        public setVerticesData(data: number[], kind: string, updatable?: boolean): void {
+        public setVerticesData(data: number[], kind: string, updatable?: boolean, keepSubMeshesAsAre?: boolean): void {
             if (!this._geometry) {
                 var vertexData = new BABYLON.VertexData();
                 vertexData.set(data, kind);
@@ -781,7 +776,7 @@
                 new BABYLON.Geometry(Geometry.RandomId(), scene.getEngine(), vertexData, updatable, this);
             }
             else {
-                this._geometry.setVerticesData(data, kind, updatable);
+                this._geometry.setVerticesData(data, kind, updatable, keepSubMeshesAsAre);
             }
         }
 
@@ -806,7 +801,7 @@
             geometry.applyToMesh(this);
         }
 
-        public setIndices(indices: number[]): void {
+        public setIndices(indices: number[], keepSubMeshesAsAre?: boolean): void {
             if (!this._geometry) {
                 var vertexData = new BABYLON.VertexData();
                 vertexData.indices = indices;
@@ -816,7 +811,7 @@
                 new BABYLON.Geometry(BABYLON.Geometry.RandomId(), scene.getEngine(), vertexData, false, this);
             }
             else {
-                this._geometry.setIndices(indices);
+                this._geometry.setIndices(indices, keepSubMeshesAsAre);
             }
         }
 

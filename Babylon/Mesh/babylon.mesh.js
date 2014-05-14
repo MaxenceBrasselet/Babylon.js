@@ -432,14 +432,15 @@ var BABYLON;
             }
         };
 
-        Mesh.Merge = function (meshesToMerge, newMeshName, scene, doNotDeleteAfterMerging, flattenChildren) {
+        Mesh.Merge = function (meshesToMerge, newMeshName, scene, breakHierarchy, doNotDeleteAfterMerging, flattenChildren) {
             var newMesh = new BABYLON.Mesh(newMeshName, scene);
 
-            // This variable is used to know that this merge is the merged one
-            // so we don't have to consider it in some case (like when calculating the center of meshes.
+            // This variable is used to know that this mesh is the merged one
+            // so we don't have to consider it in some case (like when calculating the center of meshes).
+            // because it has been created just as a container.
             newMesh._newMeshForMerge = true;
 
-            newMesh.mergeInPlace(meshesToMerge, doNotDeleteAfterMerging, flattenChildren);
+            newMesh.mergeInPlace(meshesToMerge, breakHierarchy, doNotDeleteAfterMerging, flattenChildren);
 
             newMesh._newMeshForMerge = false;
 
@@ -448,7 +449,7 @@ var BABYLON;
 
         Mesh.prototype.mergeInPlace = function (meshesToMerge, breakHierarchy, doNotDeleteAfterMerging, flattenChildren) {
             if (!meshesToMerge) {
-                //BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.ERROR, 'Must have meshes to merge.');
+                BABYLON.Tools.Error('Must have meshes to merge.');
                 return;
             }
 
@@ -606,14 +607,7 @@ var BABYLON;
                         //
                         indices = indices.concat(tmpIndices);
                         break;
-                    case BABYLON.VertexBuffer.NormalKind:
-                        // means we treat the first mesh to merge.
-                        if (vertices.length == 0) {
-                            this._getVerticesPositionsAndNormals(kind, vertices, meshTransformMatrix);
-                        }
 
-                        meshToMerge._getVerticesPositionsAndNormals(kind, vertices, meshToMergeTransformMatrix);
-                        break;
                     default:
                         // means we treat the first mesh to merge.
                         if (vertices.length == 0 && this.isVerticesDataPresent(kind)) {
@@ -643,7 +637,9 @@ var BABYLON;
                         if (haveToBreakHierarchy) {
                             child.position = child.getAbsolutePosition(true);
                         } else {
+                            child.position = child.getAbsolutePosition(true).subtract(center);
                             child.parent = this;
+                            child.justAdded = true;
                         }
                     }
 
@@ -652,14 +648,13 @@ var BABYLON;
             }
 
             if (vertices.length >= BABYLON.Mesh.VERTICESLIMITATION) {
-                console.error('To much vertices');
-                //BABYLON.Tools.Log.log(BABYLON.Tools.Log.Level.WARN, 'Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
+                BABYLON.Tools.Warn('Mesh "' + this.name + '" have more than ' + BABYLON.Mesh.VERTICESLIMITATION + 'vertices !');
             }
 
             if (vertices.length === 0)
                 return;
 
-            this.setVerticesData(vertices, kind, false);
+            this.setVerticesData(vertices, kind, false, true);
 
             if (kind === BABYLON.VertexBuffer.PositionKind) {
                 this.setIndices(indices);
@@ -673,16 +668,21 @@ var BABYLON;
                 }
 
                 for (var thisCi = 0; thisCi < thisChildren.length; ++thisCi) {
-                    var child = children[thisCi];
+                    var thisChild = thisChildren[thisCi];
+
+                    // Just added means the child was added by merging.
+                    if (thisChild.justAdded) {
+                        continue;
+                    }
 
                     if (haveToBreakHierarchy) {
-                        child.position = child.getAbsolutePosition(true);
-                        child.parent = null;
+                        thisChild.position = thisChild.getAbsolutePosition(true);
+                        thisChild.parent = null;
                     } else {
                         // Just need to add its parent position because the merge is only applied to its parent,
                         // so its parent keep its relative position to its own parent.
-                        var childPositionInParentSpace = child.position.add(this.position);
-                        child.position = childPositionInParentSpace.subtract(center);
+                        var childPositionInParentSpace = thisChild.position.add(this.position);
+                        thisChild.position = childPositionInParentSpace.subtract(center);
                     }
                 }
 
@@ -721,7 +721,7 @@ var BABYLON;
             return center;
         };
 
-        Mesh.prototype.setVerticesData = function (data, kind, updatable) {
+        Mesh.prototype.setVerticesData = function (data, kind, updatable, doNotCreateGlobalSubmesh) {
             if (!this._geometry) {
                 var vertexData = new BABYLON.VertexData();
                 vertexData.set(data, kind);
@@ -730,7 +730,7 @@ var BABYLON;
 
                 new BABYLON.Geometry(BABYLON.Geometry.RandomId(), scene.getEngine(), vertexData, updatable, this);
             } else {
-                this._geometry.setVerticesData(data, kind, updatable);
+                this._geometry.setVerticesData(data, kind, updatable, doNotCreateGlobalSubmesh);
             }
         };
 
@@ -763,7 +763,7 @@ var BABYLON;
 
                 new BABYLON.Geometry(BABYLON.Geometry.RandomId(), scene.getEngine(), vertexData, false, this);
             } else {
-                this._geometry.setIndices(indices);
+                this._geometry.setIndices(indices, true);
             }
         };
 

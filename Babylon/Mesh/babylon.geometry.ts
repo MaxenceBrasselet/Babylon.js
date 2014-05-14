@@ -48,7 +48,7 @@
             vertexData.applyToGeometry(this, updatable);
         }
 
-        public setVerticesData(data: number[], kind: string, updatable?: boolean): void {
+        public setVerticesData(data: number[], kind: string, updatable?: boolean, keepSubMeshesAsAre?: boolean): void {
             this._vertexBuffers = this._vertexBuffers || {};
 
             if (this._vertexBuffers[kind]) {
@@ -71,7 +71,10 @@
                     var mesh = meshes[index];
                     mesh._resetPointsArrayCache();
                     mesh._boundingInfo = new BABYLON.BoundingInfo(extend.minimum, extend.maximum);
-                    mesh._createGlobalSubMesh();
+
+                    if (!keepSubMeshesAsAre) {
+                        mesh._createGlobalSubMesh();
+                    }
                 }
             }
         }
@@ -163,7 +166,7 @@
             return result;
         }
 
-        public setIndices(indices: number[]): void {
+        public setIndices(indices: number[], keepSubMeshesAsAre?: boolean): void {
             if (this._indexBuffer) {
                 this._engine._releaseBuffer(this._indexBuffer);
             }
@@ -171,6 +174,10 @@
             this._indices = indices;
             if (this._meshes.length !== 0 && this._indices) {
                 this._indexBuffer = this._engine.createIndexBuffer(this._indices);
+            }
+
+            if (keepSubMeshesAsAre) {
+                return;
             }
 
             var meshes = this._meshes;
