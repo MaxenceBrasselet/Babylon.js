@@ -1,14 +1,33 @@
 ﻿module BABYLON {
     export class Mesh extends Node implements IGetSetVerticesData {
         // Statics
-        public static BILLBOARDMODE_NONE = 0;
-        public static BILLBOARDMODE_X = 1;
-        public static BILLBOARDMODE_Y = 2;
-        public static BILLBOARDMODE_Z = 4;
-        public static BILLBOARDMODE_ALL = 7;
         // If we have more than 65535 vertices (WebGL limitation) we should cut our mesh.
         public static VERTICESLIMITATION = 65535;
-        
+        private static _BILLBOARDMODE_NONE = 0;
+        private static _BILLBOARDMODE_X = 1;
+        private static _BILLBOARDMODE_Y = 2;
+        private static _BILLBOARDMODE_Z = 4;
+        private static _BILLBOARDMODE_ALL = 7;
+
+        public static get BILLBOARDMODE_NONE(): number {
+            return Mesh._BILLBOARDMODE_NONE;
+        }
+
+        public static get BILLBOARDMODE_X(): number {
+            return Mesh._BILLBOARDMODE_X;
+        }
+
+        public static get BILLBOARDMODE_Y(): number {
+            return Mesh._BILLBOARDMODE_Y;
+        }
+
+        public static get BILLBOARDMODE_Z(): number {
+            return Mesh._BILLBOARDMODE_Z;
+        }
+
+        public static get BILLBOARDMODE_ALL(): number {
+            return Mesh._BILLBOARDMODE_ALL;
+        }
 
         // Members
         public position = new BABYLON.Vector3(0, 0, 0);

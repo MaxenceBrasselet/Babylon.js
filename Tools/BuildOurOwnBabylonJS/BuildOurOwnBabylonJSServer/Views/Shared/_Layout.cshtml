@@ -23,6 +23,7 @@
 
                 OURBABYLON.canvas = document.getElementById("ourOwnBabylonJSCanvas");
                 OURBABYLON.engine = new BABYLON.Engine(OURBABYLON.canvas, true);
+                BABYLON.Engine.ShadersRepository = "http://localhost:46970/BuildOurOwnBabylonJS/GetFileContent?rootPath=..%5C..%5C..%5C&relPath=Babylon/Shaders/";
 
                 OURBABYLON.sceneInitialization = function (scene, attachControlToCamera) {
                     OURBABYLON.currentScene = scene;

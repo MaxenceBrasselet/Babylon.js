@@ -15,6 +15,10 @@
     <AssemblyName>BabylonJS</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <UseIISExpress>false</UseIISExpress>
+    <IISExpressSSLPort />
+    <IISExpressAnonymousAuthentication />
+    <IISExpressWindowsAuthentication />
+    <IISExpressUseClassicPipelineMode />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <DebugSymbols>true</DebugSymbols>
@@ -56,22 +60,25 @@
   </PropertyGroup>
   <Choose>
     <When Condition="Exists('$(VSToolsPath)\TypeScript\Microsoft.TypeScript.targets')">
-        <ItemGroup>
-            <TypeScriptCompile Include="..\..\..\Babylon\**\*.ts">
-              <Link>Babylon\%(RecursiveDir)%(Filename)%(Extension)</Link>
-            </TypeScriptCompile>
-        </ItemGroup>
+      <ItemGroup>
+        <TypeScriptCompile Include="..\..\..\Babylon\**\*.ts">
+          <Link>Babylon\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </TypeScriptCompile>
+      </ItemGroup>
     </When>
     <Otherwise>
-        <ItemGroup>
-            <Resource Include="..\..\..\Babylon\**\*.ts">
-                <Link>Babylon\%(RecursiveDir)%(Filename)%(Extension)</Link>
-            </Resource>
-        </ItemGroup>
+      <ItemGroup>
+        <Resource Include="..\..\..\Babylon\**\*.ts">
+          <Link>Babylon\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </Resource>
+      </ItemGroup>
     </Otherwise>
   </Choose>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
-  <Import Project="$(VSToolsPath)\TypeScript\Microsoft.TypeScript.targets" Condition="Exists('$(VSToolsPath)\TypeScript\Microsoft.TypeScript.targets')"/>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <TypeScriptTarget>ES5</TypeScriptTarget>
+  </PropertyGroup>
+  <Import Project="$(VSToolsPath)\TypeScript\Microsoft.TypeScript.targets" Condition="Exists('$(VSToolsPath)\TypeScript\Microsoft.TypeScript.targets')" />
   <Import Project="$(VSToolsPath)\WebApplications\Microsoft.WebApplication.targets" Condition="'$(VSToolsPath)' != ''" />
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v10.0\WebApplications\Microsoft.WebApplication.targets" Condition="false" />
   <ProjectExtensions>
