@@ -5,12 +5,48 @@
 }
 
 <script type="text/javascript">
+    var testMoveVertices = function (mesh) {
+       
+        mesh.computeWorldMatrix(true);
+
+        var meshWorldMatrix = mesh.getWorldMatrix().clone();
+
+        var translationMatrix = BABYLON.Matrix.Translation(-1.5, -1.5, -1.5);
+        var rotationMatrix = BABYLON.Matrix.RotationYawPitchRoll(12, 0, 0);
+
+        // inverse of final world matrix
+        //var pivotMatrix = rotationMatrix.multiply(translationMatrix);
+        var invCenterMatrix = BABYLON.Matrix.Translation(-center.x, -center.y, -center.z);
+
+        var pivotMatrix = meshWorldMatrix.multiply(invCenterMatrix);
+        var invPivotMatrix = pivotMatrix.clone();
+        invPivotMatrix.invert();
+
+        var positions = [];
+        mesh._getTransformedVerticesPositions("position", positions, invPivotMatrix);
+        mesh.setVerticesData(positions, "position", false, true);
+
+        var normals = [];
+        mesh._getTransformedVerticesPositions("normal", normals, invPivotMatrix);
+        mesh.setVerticesData(normals, "normal", false, true);
+        
+
+        //var test = BABYLON.Vector3.TransformCoordinates(BABYLON.Vector3.Zero(), meshToMergeTransformMatrix);
+
+        /*var invParentWM = mesh.parent.getWorldMatrix().clone();
+        invParentWM.invert();*/
+
+        //mesh.position = new BABYLON.Vector3(2.5, 2.5, 2.5);
+        //mesh.rotation = BABYLON.Vector3.Zero();
+        mesh.setPivotMatrix(pivotMatrix);
+    };
+
     $(document).ready(function () {
 
         var loading = new OURBABYLON.Loading(OURBABYLON.canvas.parentElement);
 
         loading.show();
-
+        
         BABYLON.SceneLoader.Load("@Html.Raw(this.BabylonJSSamplesFile("Scenes/" + (string)ViewBag.DemoFolderName))" + "@Url.Encode("/")", "@ViewBag.DemoFile", OURBABYLON.engine, function (scene) {
             OURBABYLON.sceneInitialization(scene);
             scene.activeCamera.attachControl(OURBABYLON.canvas);
