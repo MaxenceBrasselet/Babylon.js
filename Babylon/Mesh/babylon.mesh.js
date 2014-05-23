@@ -94,46 +94,6 @@ var BABYLON;
             configurable: true
         });
 
-        Object.defineProperty(Mesh, "BILLBOARDMODE_NONE", {
-            get: function () {
-                return Mesh._BILLBOARDMODE_NONE;
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        Object.defineProperty(Mesh, "BILLBOARDMODE_X", {
-            get: function () {
-                return Mesh._BILLBOARDMODE_X;
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        Object.defineProperty(Mesh, "BILLBOARDMODE_Y", {
-            get: function () {
-                return Mesh._BILLBOARDMODE_Y;
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        Object.defineProperty(Mesh, "BILLBOARDMODE_Z", {
-            get: function () {
-                return Mesh._BILLBOARDMODE_Z;
-            },
-            enumerable: true,
-            configurable: true
-        });
-
-        Object.defineProperty(Mesh, "BILLBOARDMODE_ALL", {
-            get: function () {
-                return Mesh._BILLBOARDMODE_ALL;
-            },
-            enumerable: true,
-            configurable: true
-        });
-
         Mesh.prototype.getBoundingInfo = function () {
             return this._boundingInfo;
         };
@@ -824,6 +784,63 @@ var BABYLON;
             }
 
             this.setPivotMatrix(parentWorldMatrix.clone());
+        };
+
+        Mesh.prototype.decomposeTranslationRotationScalingMatrix = function (matrix) {
+            var innerMatrix = matrix.clone();
+
+            // Translation
+            var positionX = innerMatrix.m[12];
+            var positionY = innerMatrix.m[13];
+            var positionZ = innerMatrix.m[14];
+
+            var translation = new BABYLON.Vector3(positionX, positionY, positionZ);
+            var translationMatrixInv = BABYLON.Matrix.Translation(-positionX, -positionY, -positionZ);
+
+            //
+            // Scaling
+            var scalingX = Math.sqrt(innerMatrix.m[0] * innerMatrix.m[0] + innerMatrix.m[1] * innerMatrix.m[1] + innerMatrix.m[2] * innerMatrix.m[2]);
+            var scalingY = Math.sqrt(innerMatrix.m[4] * innerMatrix.m[4] + innerMatrix.m[5] * innerMatrix.m[5] + innerMatrix.m[6] * innerMatrix.m[6]);
+            var scalingZ = Math.sqrt(innerMatrix.m[8] * innerMatrix.m[8] + innerMatrix.m[9] * innerMatrix.m[9] + innerMatrix.m[10] * innerMatrix.m[10]);
+
+            var scaling = new BABYLON.Vector3(scalingX, scalingY, scalingZ);
+
+            //
+            // Rotation
+            var rotationMatrix = innerMatrix.multiply(translationMatrixInv);
+
+            // Normalize to remove scaling.
+            if (scalingX) {
+                rotationMatrix.m[0] /= scalingX;
+                rotationMatrix.m[1] /= scalingX;
+                rotationMatrix.m[2] /= scalingX;
+            }
+            if (scalingY) {
+                rotationMatrix.m[4] /= scalingY;
+                rotationMatrix.m[5] /= scalingY;
+                rotationMatrix.m[6] /= scalingY;
+            }
+            if (scalingZ) {
+                rotationMatrix.m[8] /= scalingZ;
+                rotationMatrix.m[9] /= scalingZ;
+                rotationMatrix.m[10] /= scalingZ;
+            }
+
+            //
+            var rotationX = Math.asin(-rotationMatrix.m[9]);
+            var rotationY = Math.atan2(rotationMatrix.m[8], rotationMatrix.m[10]);
+            var rotationZ = Math.atan2(rotationMatrix.m[1], rotationMatrix.m[5]);
+
+            var rotation = new BABYLON.Vector3(rotationX, rotationY, rotationZ);
+
+            //
+            var result = {
+                translation: translation,
+                scaling: scaling,
+                rotation: rotation
+            };
+
+            return result;
         };
 
         Mesh.prototype.setVerticesData = function (data, kind, updatable, keepSubMeshesAsAre) {
@@ -1626,6 +1643,16 @@ var BABYLON;
         Mesh._BILLBOARDMODE_Y = 2;
         Mesh._BILLBOARDMODE_Z = 4;
         Mesh._BILLBOARDMODE_ALL = 7;
+
+        Mesh.Between0And2PI = function (number) {
+            var r = number % (2 * Math.PI);
+
+            if (number < 0) {
+                r += 2 * Math.PI;
+            }
+
+            return r;
+        };
         return Mesh;
     })(BABYLON.Node);
     BABYLON.Mesh = Mesh;
