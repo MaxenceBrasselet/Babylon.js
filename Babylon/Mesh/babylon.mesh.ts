@@ -807,10 +807,20 @@
                 return;
             }
 
-            this.setPivotMatrix(parentWorldMatrix.clone());
+            var translationMatrix = BABYLON.Matrix.Translation(this.position.x, this.position.y, this.position.z);
+            var rotationMatrix = BABYLON.Matrix.RotationYawPitchRoll(this.rotation.y, this.rotation.x, this.rotation.z);
+            var scalingMatrix = BABYLON.Matrix.Scaling(this.scaling.x, this.scaling.y, this.scaling.z);
+
+            var matrix = (scalingMatrix.multiply(rotationMatrix)).multiply(translationMatrix).multiply(parentWorldMatrix);
+
+            var result:any = Mesh.decomposeTranslationRotationScalingMatrix(matrix);
+
+            this.position = result.translation;
+            this.rotation = result.rotation;
+            this.scaling = result.scaling;
         }
 
-        public decomposeTranslationRotationScalingMatrix(matrix: Matrix): Object {
+        private static decomposeTranslationRotationScalingMatrix(matrix: Matrix): Object {
             var innerMatrix = matrix.clone();
             
             // Translation

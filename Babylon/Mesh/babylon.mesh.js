@@ -783,10 +783,20 @@ var BABYLON;
                 return;
             }
 
-            this.setPivotMatrix(parentWorldMatrix.clone());
+            var translationMatrix = BABYLON.Matrix.Translation(this.position.x, this.position.y, this.position.z);
+            var rotationMatrix = BABYLON.Matrix.RotationYawPitchRoll(this.rotation.y, this.rotation.x, this.rotation.z);
+            var scalingMatrix = BABYLON.Matrix.Scaling(this.scaling.x, this.scaling.y, this.scaling.z);
+
+            var matrix = (scalingMatrix.multiply(rotationMatrix)).multiply(translationMatrix).multiply(parentWorldMatrix);
+
+            var result = Mesh.decomposeTranslationRotationScalingMatrix(matrix);
+
+            this.position = result.translation;
+            this.rotation = result.rotation;
+            this.scaling = result.scaling;
         };
 
-        Mesh.prototype.decomposeTranslationRotationScalingMatrix = function (matrix) {
+        Mesh.decomposeTranslationRotationScalingMatrix = function (matrix) {
             var innerMatrix = matrix.clone();
 
             // Translation
@@ -1643,16 +1653,6 @@ var BABYLON;
         Mesh._BILLBOARDMODE_Y = 2;
         Mesh._BILLBOARDMODE_Z = 4;
         Mesh._BILLBOARDMODE_ALL = 7;
-
-        Mesh.Between0And2PI = function (number) {
-            var r = number % (2 * Math.PI);
-
-            if (number < 0) {
-                r += 2 * Math.PI;
-            }
-
-            return r;
-        };
         return Mesh;
     })(BABYLON.Node);
     BABYLON.Mesh = Mesh;
