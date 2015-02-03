@@ -3,6 +3,7 @@
 var BABYLON = BABYLON || {};
 
 (function () {
+
     var loadCubeTexture = function (rootUrl, parsedTexture, scene) {
         var texture = new BABYLON.CubeTexture(rootUrl + parsedTexture.name, scene);
 
@@ -494,7 +495,7 @@ var BABYLON = BABYLON || {};
         return geometry;
     };
 
-    var parseMesh = function (parsedMesh, scene, rootUrl) {
+    var parseMesh = function (parsedMesh, scene, rootUrl, doNotSetParent) {
         var mesh = new BABYLON.Mesh(parsedMesh.name, scene);
         mesh.id = parsedMesh.id;
 
@@ -532,7 +533,7 @@ var BABYLON = BABYLON || {};
         mesh._shouldGenerateFlatShading = parsedMesh.useFlatShading;
 
         // Parent
-        if (parsedMesh.parentId) {
+        if (!doNotSetParent && parsedMesh.parentId) {
             mesh.parent = scene.getLastEntryByID(parsedMesh.parentId);
         }
 
@@ -766,16 +767,37 @@ var BABYLON = BABYLON || {};
 
     BABYLON.SceneLoader.RegisterPlugin({
         extensions: ".babylon",
-        importMesh: function (meshesNames, scene, data, rootUrl, meshes, particleSystems, skeletons) {
+        importMesh: function (meshesNames, scene, data, rootUrl, meshes, particleSystems, skeletons, parentId, breakHierarchyOptions) {
             var parsedData = JSON.parse(data);
+            
+            breakHierarchyOptions = breakHierarchyOptions || BABYLON.SceneLoader.BREAKHIERARCHYOPTIONS.NONE;
+
+            var breakHierarchy = !(breakHierarchyOptions === BABYLON.SceneLoader.BREAKHIERARCHYOPTIONS.NONE);
+            var bakeParents = (breakHierarchyOptions === BABYLON.SceneLoader.BREAKHIERARCHYOPTIONS.BAKEPARENTS);
 
             var loadedSkeletonsIds = [];
             var loadedMaterialsIds = [];
             var hierarchyIds = [];
+            var parsedMeshes;
+
+            if (bakeParents) {
+                parsedMeshes = [];
+            }
+
             for (var index = 0; index < parsedData.meshes.length; index++) {
                 var parsedMesh = parsedData.meshes[index];
 
-                if (!meshesNames || isDescendantOf(parsedMesh, meshesNames, hierarchyIds)) {
+                // Store all meshes to find a mesh when it is not loaded in the scene.
+                if (bakeParents) {
+                    parsedMeshes[parsedMesh.id] = parsedMesh;
+                }
+
+                var isThisMesh = parsedMesh.name === meshesNames;
+                    
+                if (!meshesNames
+                    || (!breakHierarchy && isDescendantOf(parsedMesh, meshesNames, hierarchyIds))
+                    || (breakHierarchy && isThisMesh)) 
+                {
                     if (meshesNames instanceof Array) {
                         // Remove found mesh name from list.
                         delete meshesNames[meshesNames.indexOf(parsedMesh.name)];
@@ -825,8 +847,132 @@ var BABYLON = BABYLON || {};
                         }
                     }
 
-                    var mesh = parseMesh(parsedMesh, scene, rootUrl);
+                    parentId = parentId || parsedMesh.parentId;
+
+                    // the parent must not be imported, only the mesh must be
+                    // imported with its children if specified in breakHierarchyOptions
+                    // (its children must import their parent - the mesh we are trying to import)
+                    var mesh = parseMesh(parsedMesh, scene, rootUrl, isThisMesh);
+                    
+                    // Set parentId if parent was not found (to search it later).     
+                    if (parentId && parentId != -1 && isThisMesh && mesh.parent == null) {
+                        mesh.parentId = parentId;
+                    }
+
                     meshes.push(mesh);
+
+                    if (!breakHierarchy) {
+                        continue;
+                    }
+
+                    // Else breakHierarchy.
+                    switch (breakHierarchyOptions) {
+                        // Set mesh position to (0,0,0) in the world space.
+                        case BABYLON.SceneLoader.BREAKHIERARCHYOPTIONS.RESET:
+                            // Reset position.
+                            mesh.position.x = 0;
+                            mesh.position.y = 0;
+                            mesh.position.z = 0;
+
+                            // Reset rotation.
+                            mesh.rotation.x = 0;
+                            mesh.rotation.y = 0;
+                            mesh.rotation.z = 0;
+
+                            // Reset Scale.
+                            mesh.scaling.x = 1;
+                            mesh.scaling.y = 1;
+                            mesh.scaling.z = 1;
+
+                            // Break parent relationship.
+                            delete mesh.parent;
+                            break;
+                        // Bake position by adding parent's position recursively to the mesh.
+                        case BABYLON.SceneLoader.BREAKHIERARCHYOPTIONS.BAKEPARENTS:
+                            if (!parsedMesh.parentId && !mesh.parent) {
+                                // The mesh does not have any parent, it is aready explain in world space.
+                                // We can skip it.
+                                continue;
+                            }
+
+                            var transformTRSToWorld = function (parsedMesh, currentMeshMatrix, mesh) {
+                                if (!parsedMesh.parentId) {
+                                    finalMatrix = currentMeshMatrix;
+                                    return;
+                                }
+
+                                var parent = parsedMeshes[parsedMesh.parentId];
+
+                                if (!parent) {
+                                    BABYLON.Tools.Error("Cannot find the parent, it must be in the same file and before the child definition.");
+                                    return;
+                                }
+
+                                ++deepLevel;
+
+                                // Create parent TRS matrix.
+                                var scalingMatrix = BABYLON.Matrix.Scaling(parent.scaling[0], parent.scaling[1], parent.scaling[2]);
+                                var translationMatrix = BABYLON.Matrix.Translation(parent.position[0], parent.position[1], parent.position[2]);
+                                var rotationMatrix = BABYLON.Matrix.RotationYawPitchRoll(parent.rotation[1], parent.rotation[0], parent.rotation[2]);
+
+                                var parentMatrix = (scalingMatrix.multiply(rotationMatrix)).multiply(translationMatrix);
+                                //
+
+                                if (parent.parentId) {
+                                    // Means the parent have a parent too, 
+                                    // so we need to purchase to the next level of hierarchy.
+                                    // until we found reference to the world (means no parent).
+                                    transformTRSToWorld(parent, parentMatrix, mesh);
+                                }
+                                else {
+                                    finalMatrix = parentMatrix;
+                                }
+
+                                finalMatrix = finalMatrix.multiply(currentMeshMatrix);
+
+                                // Last time: set the position, rotation and scaling of the mesh.
+                                --deepLevel;
+                                if (deepLevel == 0) {
+                                    var result = BABYLON.Mesh.decomposeTranslationRotationScalingMatrix(finalMatrix);
+                                    mesh.position = result.translation;
+                                    mesh.rotation = result.rotation;
+                                    mesh.scaling = result.scaling;
+                                }
+                                //
+                            };
+
+                            // mean the parent was not found.
+                            if (parsedMesh.parentId && (mesh.parent === null || mesh.parent === undefined)) {
+                                var deepLevel = 0;
+                                var finalPositon = mesh.position;
+                                var finalRotation = mesh.rotation;
+                                var finalScaling = mesh.scaling;
+                                var finalMatrix;
+                                
+                                // We can take the mesh world matrix 
+                                // because it has been setted without any parent
+                                // so its world matrix is its TRS matrix.
+                                var meshMatrix = mesh.getWorldMatrix();
+
+                                transformTRSToWorld(parsedMesh, meshMatrix, mesh);
+                            }
+                            else {
+                                mesh.breakHierarchy(Mesh.BREAKHIERARCHYTYPE.BREAKPARENT);
+                            }
+
+                            // Break parent relationship.
+                            delete mesh.parent;
+                            break;
+                            // Save current mesh's position in world space.
+                        case BABYLON.SceneLoader.BREAKHIERARCHYOPTIONS.SETINWORLD:
+                            // Transform which was relative to the parent will be now relative to the world.
+                            // Break parent relationship.
+                            delete mesh.parent;
+                            break;
+                        default:
+                            BABYLON.Tools.Warn("Your case does not exist!");
+                            break;
+                    }
                 }
             }
 

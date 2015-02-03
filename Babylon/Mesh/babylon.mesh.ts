@@ -487,6 +487,7 @@
             if (!meshesToMerge) {
                 BABYLON.Tools.Error('Must have meshes to merge.');
                 return;
+
             }
 
             if (!Array.isArray(meshesToMerge)) {
@@ -784,19 +785,44 @@
             }
         }
 
-        public breakHierarchy(): void {
-            var children = this.getChildren();
+        public static BREAKHIERARCHYTYPE = {
+            BREAKCHILDREN: 1,
+            BREAKPARENT: 2,
+            //BOTH: Mesh.BREAKHIERARCHYTYPE.BREAKCHILDREN & Mesh.BREAKHIERARCHYTYPE.BREAKPARENT,
+        }
 
-            if (!children || children.length <= 0) {
-                return;
+
+        public breakHierarchy(breakTypeFlag: number): void {
+            if (!breakTypeFlag) {
+                //breakTypeFlag = Mesh.BREAKHIERARCHYTYPE.BOTH;
+            }
+             
+            if (breakTypeFlag && Mesh.BREAKHIERARCHYTYPE.BREAKCHILDREN === Mesh.BREAKHIERARCHYTYPE.BREAKCHILDREN) {
+                var children = this.getChildren();
+
+                if (!children || children.length <= 0) {
+                    return;
+                }
+
+                var worldMatrix = this.getWorldMatrix();
+
+                for (var i = 0; i < children.length; ++i) {
+                    var child: any = children[i];
+
+                    child._breakHierarchy(worldMatrix);
+                }
             }
 
-            var worldMatrix = this.getWorldMatrix();
+            if (breakTypeFlag && Mesh.BREAKHIERARCHYTYPE.BREAKPARENT === Mesh.BREAKHIERARCHYTYPE.BREAKPARENT) {
+                var parent = this.parent;
 
-            for (var i = 0; i < children.length; ++i) {
-                var child: any = children[i];
+                if (!parent) {
+                    return;
+                }
 
-                child._breakHierarchy(worldMatrix);
+                var parentWorldMatrix = parent.getWorldMatrix();
+
+                this._breakHierarchy(parentWorldMatrix);
             }
         }
 
@@ -820,7 +846,7 @@
             this.scaling = result.scaling;
         }
 
-        private static decomposeTranslationRotationScalingMatrix(matrix: Matrix): Object {
+        public static decomposeTranslationRotationScalingMatrix(matrix: Matrix): Object {
             var innerMatrix = matrix.clone();
             
             // Translation

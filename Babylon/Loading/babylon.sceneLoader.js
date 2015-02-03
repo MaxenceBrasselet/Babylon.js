@@ -18,7 +18,15 @@ var BABYLON = BABYLON || {};
                 }
             }
 
-            throw new Error("No plugin found to load this file: " + sceneFilename);
+            return this._registeredPlugins[this._registeredPlugins.length - 1];
+        },
+                
+        BREAKHIERARCHYOPTIONS: {
+            NONE: 1, // do not break hierarchy
+            WITHOUTCHILDREN: 2, // break hierarchy (children), it does not import children.
+            RESET: 3,// break hierarchy (parent) and reset mesh transform in world space.
+            BAKEPARENTS: 4, // break hierarchy (parent) and leave the mesh as is in the world (parents' transforms are baked into its transform).
+            SETINWORLD: 5, // break hierarchy (parent) but leave localWorld matrix as is.
         },
 
         // Public functions
@@ -27,7 +35,7 @@ var BABYLON = BABYLON || {};
             this._registeredPlugins.push(plugin);
         },
 
-        ImportMesh: function (meshesNames, rootUrl, sceneFilename, scene, onsuccess, progressCallBack, onerror) {
+         ImportMesh: function (meshesNames, rootUrl, sceneFilename, scene, onsuccess, progressCallBack, onerror, parentId, breakHierarchyOptions) {
             // Checking if a manifest file has been set for this scene and if offline mode has been requested
             var database = new BABYLON.Database(rootUrl + sceneFilename);
             scene.database = database;
@@ -39,7 +47,7 @@ var BABYLON = BABYLON || {};
                 var particleSystems = [];
                 var skeletons = [];
 
-                if (!plugin.importMesh(meshesNames, scene, data, rootUrl, meshes, particleSystems, skeletons)) {
+                if (!plugin.importMesh(meshesNames, scene, data, rootUrl, meshes, particleSystems, skeletons, parentId, breakHierarchyOptions)) {
                     if (onerror) {
                         onerror(scene);
                     }
